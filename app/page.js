@@ -109,7 +109,7 @@ function Todos({ todos, handleCheck, removeElement }) {
             handleCheck={handleCheck}
             removeElement={removeElement}
           >
-            {t.text}
+            {t.content}
           </Todo>
         ))}
       </AnimatePresence>
@@ -177,7 +177,7 @@ export default function OrganicTodoList() {
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    fetch("/api/todos")
+    fetch("/api/todos/")
       .then((r) => r.json())
       .then((data) => setTodos(data))
       .catch(() => setError("Failed to load todos. Is the backend running?"));
@@ -185,10 +185,10 @@ export default function OrganicTodoList() {
 
   const handleAdd = async (text) => {
     try {
-      const res = await fetch("/api/todos", {
+      const res = await fetch("/api/todos/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ content: text }),
       });
       const newTodo = await res.json();
       setTodos((pv) => [newTodo, ...pv]);
@@ -200,7 +200,7 @@ export default function OrganicTodoList() {
   const handleCheck = async (id) => {
     const todo = todos.find((t) => t.id === id);
     try {
-      const res = await fetch(`/api/todos/${id}`, {
+      const res = await fetch(`/api/todos/${id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !todo.completed }),
@@ -214,7 +214,7 @@ export default function OrganicTodoList() {
 
   const removeElement = async (id) => {
     try {
-      await fetch(`/api/todos/${id}`, { method: "DELETE" });
+      await fetch(`/api/todos/${id}/`, { method: "DELETE" });
       setTodos((pv) => pv.filter((t) => t.id !== id));
     } catch {
       setError("Failed to delete todo.");
