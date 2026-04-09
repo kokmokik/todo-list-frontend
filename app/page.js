@@ -493,7 +493,7 @@ export default function OrganicTodoList() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-emerald-950 to-teal-950">
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center">
         <FloatingLeaves />
 
         <div className="absolute inset-0 opacity-30">
@@ -506,7 +506,7 @@ export default function OrganicTodoList() {
           />
         </div>
 
-        <div className="relative z-10 container mx-auto px-4 md:px-6 pb-32">
+        <div className="relative z-10 container mx-auto px-4 md:px-6 py-16 pb-40">
           <div className="max-w-3xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
