@@ -11,11 +11,26 @@ const TAG_COLORS = [
   "#f59e0b", "#6366f1",
 ];
 
+// Normalize whatever the backend sends for a tag into a plain string or null.
+// Handles: string, "", null, undefined, {name:"x"}, [{name:"x"}], ["x"]
+function normalizeTag(raw) {
+  if (!raw) return null;
+  if (Array.isArray(raw)) {
+    const first = raw[0];
+    if (!first) return null;
+    return typeof first === "string" ? first || null : String(first.name ?? first.id ?? "");
+  }
+  if (typeof raw === "object") return String(raw.name ?? raw.id ?? "") || null;
+  const s = String(raw).trim();
+  return s || null;
+}
+
 function getTagColor(tagName) {
   if (!tagName) return null;
+  const str = String(tagName);
   let hash = 0;
-  for (let i = 0; i < tagName.length; i++) {
-    hash = (hash * 31 + tagName.charCodeAt(i)) & 0xffff;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) & 0xffff;
   }
   return TAG_COLORS[hash % TAG_COLORS.length];
 }
@@ -259,7 +274,7 @@ function Todos({ todos, handleCheck, removeElement, handleTagChange, allTags }) 
             handleCheck={handleCheck}
             removeElement={removeElement}
             handleTagChange={handleTagChange}
-            tag={t.tags || null}
+            tag={normalizeTag(t.tags)}
             allTags={allTags}
           >
             {t.content}
@@ -385,8 +400,9 @@ export default function OrganicTodoList() {
     try {
       const res = await fetch("/api/tags/");
       const data = await res.json();
-      // Normalize: backend may return strings or objects with a name field
-      setTags(data.map((t) => (typeof t === "string" ? t : t.name ?? t)));
+      setTags(
+        data.map((t) => normalizeTag(t)).filter(Boolean)
+      );
     } catch {
       // non-fatal
     }
@@ -458,12 +474,12 @@ export default function OrganicTodoList() {
   };
 
   const deleteTagGroup = async (tag) => {
-    const toDelete = todos.filter((t) => t.tags === tag);
+    const toDelete = todos.filter((t) => normalizeTag(t.tags) === tag);
     try {
       await Promise.all(
         toDelete.map((t) => fetch(`/api/todos/${t.id}/`, { method: "DELETE" }))
       );
-      setTodos((pv) => pv.filter((t) => t.tags !== tag));
+      setTodos((pv) => pv.filter((t) => normalizeTag(t.tags) !== tag));
       if (activeTag === tag) setActiveTag(null);
       await fetchTags();
     } catch {
@@ -472,7 +488,7 @@ export default function OrganicTodoList() {
   };
 
   const displayedTodos = activeTag
-    ? todos.filter((t) => t.tags === activeTag)
+    ? todos.filter((t) => normalizeTag(t.tags) === activeTag)
     : todos;
 
   return (
