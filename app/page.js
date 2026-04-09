@@ -92,11 +92,11 @@ function TagHeader({ tags, activeTag, onFilter, onDeleteGroup }) {
       </button>
       <AnimatePresence>
         {tags.map((tag) => {
-          const color = getTagColor(tag);
-          const isActive = activeTag === tag;
+          const color = getTagColor(tag.name);
+          const isActive = activeTag === tag.name;
           return (
             <motion.div
-              key={tag}
+              key={tag.id ?? tag.name}
               layout
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -110,15 +110,15 @@ function TagHeader({ tags, activeTag, onFilter, onDeleteGroup }) {
               }}
             >
               <button
-                onClick={() => onFilter(isActive ? null : tag)}
+                onClick={() => onFilter(isActive ? null : tag.name)}
                 className="leading-none"
               >
-                {tag}
+                {tag.name}
               </button>
               <button
-                onClick={() => onDeleteGroup(tag)}
+                onClick={() => onDeleteGroup(tag.name)}
                 className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
-                title={`Delete all "${tag}" todos`}
+                title={`Delete all "${tag.name}" todos`}
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -401,7 +401,9 @@ export default function OrganicTodoList() {
       const res = await fetch("/api/tags/");
       const data = await res.json();
       setTags(
-        data.map((t) => normalizeTag(t)).filter(Boolean)
+        data
+          .map((t) => typeof t === "string" ? { id: null, name: t } : { id: t.id ?? null, name: normalizeTag(t) })
+          .filter((t) => t.name)
       );
     } catch {
       // non-fatal
@@ -473,15 +475,17 @@ export default function OrganicTodoList() {
     }
   };
 
-  const deleteTagGroup = async (tag) => {
-    const toDelete = todos.filter((t) => normalizeTag(t.tags) === tag);
+  const deleteTagGroup = async (tagName) => {
+    const tagObj = tags.find((t) => t.name === tagName);
+    const toDelete = todos.filter((t) => normalizeTag(t.tags) === tagName);
     try {
-      await Promise.all(
-        toDelete.map((t) => fetch(`/api/todos/${t.id}/`, { method: "DELETE" }))
-      );
-      setTodos((pv) => pv.filter((t) => normalizeTag(t.tags) !== tag));
-      setTags((pv) => pv.filter((t) => t !== tag));
-      if (activeTag === tag) setActiveTag(null);
+      await Promise.all([
+        ...toDelete.map((t) => fetch(`/api/todos/${t.id}/`, { method: "DELETE" })),
+        ...(tagObj?.id != null ? [fetch(`/api/tags/${tagObj.id}/`, { method: "DELETE" })] : []),
+      ]);
+      setTodos((pv) => pv.filter((t) => normalizeTag(t.tags) !== tagName));
+      setTags((pv) => pv.filter((t) => t.name !== tagName));
+      if (activeTag === tagName) setActiveTag(null);
     } catch {
       setError("Failed to delete tag group.");
     }
@@ -548,13 +552,13 @@ export default function OrganicTodoList() {
                 handleCheck={handleCheck}
                 removeElement={removeElement}
                 handleTagChange={handleTagChange}
-                allTags={tags}
+                allTags={tags.map((t) => t.name)}
               />
             </motion.div>
           </div>
         </div>
 
-        <Form onAdd={handleAdd} tags={tags} />
+        <Form onAdd={handleAdd} tags={tags.map((t) => t.name)} />
       </section>
     </div>
   );
