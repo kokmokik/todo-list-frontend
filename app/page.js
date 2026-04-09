@@ -480,8 +480,8 @@ export default function OrganicTodoList() {
         toDelete.map((t) => fetch(`/api/todos/${t.id}/`, { method: "DELETE" }))
       );
       setTodos((pv) => pv.filter((t) => normalizeTag(t.tags) !== tag));
+      setTags((pv) => pv.filter((t) => t !== tag));
       if (activeTag === tag) setActiveTag(null);
-      await fetchTags();
     } catch {
       setError("Failed to delete tag group.");
     }
