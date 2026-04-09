@@ -419,7 +419,7 @@ export default function OrganicTodoList() {
   const handleAdd = async (text, tag) => {
     try {
       const body = { content: text };
-      if (tag) body.tags = tag;
+      if (tag) body.tags = [tag];
       const res = await fetch("/api/todos/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -453,7 +453,7 @@ export default function OrganicTodoList() {
       const res = await fetch(`/api/todos/${id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tags: tag ?? "" }),
+        body: JSON.stringify({ tags: tag ? [tag] : [] }),
       });
       const updated = await res.json();
       setTodos((pv) => pv.map((t) => (t.id === id ? updated : t)));
