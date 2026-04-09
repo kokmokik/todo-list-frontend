@@ -2,8 +2,25 @@
 
 import * as React from "react";
 import { motion, AnimatePresence, useAnimate, usePresence } from "framer-motion";
-import { Leaf, Plus, Trash2 } from "lucide-react";
+import { Leaf, Plus, Trash2, Tag } from "lucide-react";
 
+// --- Tag color system ---
+const TAG_COLORS = [
+  "#ef4444", "#f97316", "#eab308", "#3b82f6",
+  "#8b5cf6", "#ec4899", "#06b6d4", "#10b981",
+  "#f59e0b", "#6366f1",
+];
+
+function getTagColor(tagName) {
+  if (!tagName) return null;
+  let hash = 0;
+  for (let i = 0; i < tagName.length; i++) {
+    hash = (hash * 31 + tagName.charCodeAt(i)) & 0xffff;
+  }
+  return TAG_COLORS[hash % TAG_COLORS.length];
+}
+
+// --- FloatingLeaves ---
 function FloatingLeaves() {
   const [leaves, setLeaves] = React.useState([]);
 
@@ -44,9 +61,112 @@ function FloatingLeaves() {
   );
 }
 
-function Todo({ removeElement, handleCheck, id, children, checked }) {
+// --- TagHeader ---
+function TagHeader({ tags, activeTag, onFilter, onDeleteGroup }) {
+  return (
+    <div className="flex flex-wrap gap-2 mb-6 pb-5 border-b border-green-800/50">
+      <button
+        onClick={() => onFilter(null)}
+        className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+          activeTag === null
+            ? "bg-green-600 border-green-600 text-white"
+            : "border-green-700 text-green-400 hover:border-green-500 hover:text-green-300"
+        }`}
+      >
+        All
+      </button>
+      <AnimatePresence>
+        {tags.map((tag) => {
+          const color = getTagColor(tag);
+          const isActive = activeTag === tag;
+          return (
+            <motion.div
+              key={tag}
+              layout
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium"
+              style={{
+                borderColor: color + "60",
+                backgroundColor: isActive ? color + "30" : color + "10",
+                color: color,
+              }}
+            >
+              <button
+                onClick={() => onFilter(isActive ? null : tag)}
+                className="leading-none"
+              >
+                {tag}
+              </button>
+              <button
+                onClick={() => onDeleteGroup(tag)}
+                className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
+                title={`Delete all "${tag}" todos`}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- TagPicker dropdown (inline) ---
+function TagPicker({ currentTag, allTags, onSelect, onClose }) {
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-8 z-50 rounded-xl border border-green-800 bg-green-950/95 p-1.5 shadow-2xl backdrop-blur-sm min-w-[130px]"
+    >
+      <button
+        onClick={() => onSelect(null)}
+        className={`w-full rounded-lg px-3 py-1.5 text-left text-xs transition-colors hover:bg-green-900/50 ${
+          !currentTag ? "text-green-300 font-medium" : "text-green-500"
+        }`}
+      >
+        No tag
+      </button>
+      {allTags.map((t) => {
+        const color = getTagColor(t);
+        return (
+          <button
+            key={t}
+            onClick={() => onSelect(t)}
+            className="w-full rounded-lg px-3 py-1.5 text-left text-xs transition-colors hover:bg-green-900/50 flex items-center gap-2"
+            style={{ color: currentTag === t ? color : color + "cc" }}
+          >
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+            <span className={currentTag === t ? "font-medium" : ""}>{t}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Todo ---
+function Todo({ removeElement, handleCheck, handleTagChange, id, children, checked, tag, allTags }) {
   const [isPresent, safeToRemove] = usePresence();
   const [scope, animate] = useAnimate();
+  const [showTagPicker, setShowTagPicker] = React.useState(false);
+  const color = getTagColor(tag);
 
   React.useEffect(() => {
     if (!isPresent) {
@@ -78,6 +198,12 @@ function Todo({ removeElement, handleCheck, id, children, checked }) {
       layout
       className="relative flex w-full items-center gap-3 rounded-xl border border-green-800 bg-green-950/30 p-4 shadow-sm hover:shadow-md transition-shadow"
     >
+      {/* Tag color stripe */}
+      <div
+        className="w-1 self-stretch rounded-full flex-shrink-0 transition-colors"
+        style={{ backgroundColor: color ?? "transparent" }}
+      />
+
       <input
         type="checkbox"
         checked={checked}
@@ -87,6 +213,29 @@ function Todo({ removeElement, handleCheck, id, children, checked }) {
       <p className={`flex-1 text-green-100 transition-colors ${checked ? "text-green-400 line-through" : ""}`}>
         {children}
       </p>
+
+      {/* Tag button + picker */}
+      <div className="relative">
+        <button
+          onClick={() => setShowTagPicker((pv) => !pv)}
+          className="rounded-lg bg-green-900/30 px-2 py-1 text-xs transition-colors hover:bg-green-900/50 flex items-center gap-1"
+          style={color ? { color } : { color: "#4b5563" }}
+          title={tag ? `Tag: ${tag}` : "Add tag"}
+        >
+          <Tag className="w-3 h-3" />
+          {tag && <span className="max-w-[64px] truncate hidden sm:inline">{tag}</span>}
+        </button>
+
+        {showTagPicker && (
+          <TagPicker
+            currentTag={tag}
+            allTags={allTags}
+            onSelect={(t) => { handleTagChange(id, t); setShowTagPicker(false); }}
+            onClose={() => setShowTagPicker(false)}
+          />
+        )}
+      </div>
+
       <button
         onClick={() => removeElement(id)}
         className="rounded-lg bg-red-900/30 px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-900/50"
@@ -97,7 +246,8 @@ function Todo({ removeElement, handleCheck, id, children, checked }) {
   );
 }
 
-function Todos({ todos, handleCheck, removeElement }) {
+// --- Todos ---
+function Todos({ todos, handleCheck, removeElement, handleTagChange, allTags }) {
   return (
     <div className="w-full space-y-3">
       <AnimatePresence>
@@ -108,6 +258,9 @@ function Todos({ todos, handleCheck, removeElement }) {
             checked={t.completed}
             handleCheck={handleCheck}
             removeElement={removeElement}
+            handleTagChange={handleTagChange}
+            tag={t.tags || null}
+            allTags={allTags}
           >
             {t.content}
           </Todo>
@@ -117,16 +270,22 @@ function Todos({ todos, handleCheck, removeElement }) {
   );
 }
 
-function Form({ onAdd }) {
+// --- Form ---
+function Form({ onAdd, tags }) {
   const [visible, setVisible] = React.useState(false);
   const [text, setText] = React.useState("");
+  const [selectedTag, setSelectedTag] = React.useState(null);
+  const [newTag, setNewTag] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
   const handleSubmit = async () => {
     if (!text.trim()) return;
     setLoading(true);
-    await onAdd(text.trim());
+    const tag = newTag.trim() || selectedTag || null;
+    await onAdd(text.trim(), tag);
     setText("");
+    setSelectedTag(null);
+    setNewTag("");
     setLoading(false);
   };
 
@@ -138,10 +297,7 @@ function Form({ onAdd }) {
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 25 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit();
-            }}
+            onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
             className="mb-6 w-full rounded-xl border border-green-800 bg-green-950/90 p-4 shadow-lg backdrop-blur-sm"
           >
             <textarea
@@ -150,6 +306,52 @@ function Form({ onAdd }) {
               placeholder="Plant a new task..."
               className="h-24 w-full resize-none rounded-lg bg-green-900/30 p-3 text-sm text-green-100 placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+
+            {/* Tag selection */}
+            <div className="mt-3">
+              <p className="text-xs text-green-600 mb-2">Tag (optional)</p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedTag(null); setNewTag(""); }}
+                  className={`rounded-full px-2.5 py-0.5 text-xs border transition-colors ${
+                    !selectedTag && !newTag.trim()
+                      ? "bg-green-700/50 border-green-600 text-green-200"
+                      : "border-green-800 text-green-600 hover:border-green-600 hover:text-green-400"
+                  }`}
+                >
+                  None
+                </button>
+                {tags.map((tag) => {
+                  const color = getTagColor(tag);
+                  const isSelected = selectedTag === tag && !newTag.trim();
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => { setSelectedTag(tag); setNewTag(""); }}
+                      className="rounded-full px-2.5 py-0.5 text-xs border transition-all"
+                      style={{
+                        borderColor: color + "60",
+                        backgroundColor: isSelected ? color + "30" : "transparent",
+                        color: isSelected ? color : color + "80",
+                        opacity: isSelected ? 1 : 0.7,
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => { setNewTag(e.target.value); setSelectedTag(null); }}
+                placeholder="Or create a new tag..."
+                className="w-full rounded-lg bg-green-900/30 px-3 py-1.5 text-xs text-green-100 placeholder-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+              />
+            </div>
+
             <div className="flex items-center justify-end mt-3">
               <button
                 type="submit"
@@ -172,26 +374,44 @@ function Form({ onAdd }) {
   );
 }
 
+// --- Main ---
 export default function OrganicTodoList() {
   const [todos, setTodos] = React.useState([]);
+  const [tags, setTags] = React.useState([]);
+  const [activeTag, setActiveTag] = React.useState(null);
   const [error, setError] = React.useState(null);
+
+  async function fetchTags() {
+    try {
+      const res = await fetch("/api/tags/");
+      const data = await res.json();
+      // Normalize: backend may return strings or objects with a name field
+      setTags(data.map((t) => (typeof t === "string" ? t : t.name ?? t)));
+    } catch {
+      // non-fatal
+    }
+  }
 
   React.useEffect(() => {
     fetch("/api/todos/")
       .then((r) => r.json())
       .then((data) => setTodos(data))
       .catch(() => setError("Failed to load todos. Is the backend running?"));
+    fetchTags();
   }, []);
 
-  const handleAdd = async (text) => {
+  const handleAdd = async (text, tag) => {
     try {
+      const body = { content: text };
+      if (tag) body.tags = tag;
       const res = await fetch("/api/todos/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify(body),
       });
       const newTodo = await res.json();
       setTodos((pv) => [newTodo, ...pv]);
+      if (tag) await fetchTags();
     } catch {
       setError("Failed to add todo.");
     }
@@ -212,14 +432,48 @@ export default function OrganicTodoList() {
     }
   };
 
+  const handleTagChange = async (id, tag) => {
+    try {
+      const res = await fetch(`/api/todos/${id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: tag ?? "" }),
+      });
+      const updated = await res.json();
+      setTodos((pv) => pv.map((t) => (t.id === id ? updated : t)));
+      await fetchTags();
+    } catch {
+      setError("Failed to update tag.");
+    }
+  };
+
   const removeElement = async (id) => {
     try {
       await fetch(`/api/todos/${id}/`, { method: "DELETE" });
       setTodos((pv) => pv.filter((t) => t.id !== id));
+      await fetchTags();
     } catch {
       setError("Failed to delete todo.");
     }
   };
+
+  const deleteTagGroup = async (tag) => {
+    const toDelete = todos.filter((t) => t.tags === tag);
+    try {
+      await Promise.all(
+        toDelete.map((t) => fetch(`/api/todos/${t.id}/`, { method: "DELETE" }))
+      );
+      setTodos((pv) => pv.filter((t) => t.tags !== tag));
+      if (activeTag === tag) setActiveTag(null);
+      await fetchTags();
+    } catch {
+      setError("Failed to delete tag group.");
+    }
+  };
+
+  const displayedTodos = activeTag
+    ? todos.filter((t) => t.tags === activeTag)
+    : todos;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-emerald-950 to-teal-950">
@@ -264,16 +518,27 @@ export default function OrganicTodoList() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="rounded-3xl border border-green-800 bg-green-950/50 p-8 shadow-2xl backdrop-blur-sm"
             >
+              {tags.length > 0 && (
+                <TagHeader
+                  tags={tags}
+                  activeTag={activeTag}
+                  onFilter={setActiveTag}
+                  onDeleteGroup={deleteTagGroup}
+                />
+              )}
+
               <Todos
-                todos={todos}
+                todos={displayedTodos}
                 handleCheck={handleCheck}
                 removeElement={removeElement}
+                handleTagChange={handleTagChange}
+                allTags={tags}
               />
             </motion.div>
           </div>
         </div>
 
-        <Form onAdd={handleAdd} />
+        <Form onAdd={handleAdd} tags={tags} />
       </section>
     </div>
   );
